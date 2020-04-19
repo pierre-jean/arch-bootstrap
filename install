@@ -1,0 +1,369 @@
+#!/bin/bash
+# WARNING: this script will destroy data on the selected disk.
+# This script can be run by executing the following:
+#   curl -sL https://git.io/vAoV8 | bash
+
+
+################# GLOBAL BATCH SETTINGS #################
+
+manage_error_during_install(){
+	set -o pipefail
+	trap 's=$?; echo "$0: Error on line "$LINENO": $BASH_COMMAND"; exit $s' ERR
+	### Set up logging ###
+	exec 1> >(tee "stdout.log")
+	exec 2> >(tee "stderr.log")
+}
+
+################# HARD DRIVE PARTITION #################
+
+
+is_uefi() {
+	ls /sys/firmware/efi/efivars &> /dev/null
+}
+
+get_drive_to_install(){
+	devicelist=$(lsblk -dplnx size -o name,size | grep -Ev "boot|rpmb|loop" | tac)
+	device=$(dialog --stdout --menu "Select disk for root" 0 0 0 ${devicelist}) || exit 1
+	device_home=$(dialog --stdout --menu "Select disk for home" 0 0 0 ${devicelist}) || exit 1
+}
+
+compute_part_root_on_shared_device(){
+	device_size=$(parted $device unit GiB print | grep $device | cut -d ' ' -f3 | cut -d '.' -f1)
+	[[ $device_size -gt 130 ]] && root_end="60GiB" 
+	[[ $device_size -le 130 ]] && root_end="40GiB" 
+	[[ $device_size -le 80 ]] && root_end="20GiB" 
+	[[ $device_size -le 20 ]] && root_end="50%"
+}
+
+compute_partitions_size(){
+	is_uefi && uefi_size=129 || uefi_size=1
+	swap_size=$(free --mebi | awk '/Mem:/ {print $2}')
+	swap_end=$(( $swap_size + 1 + $uefi_size ))MiB
+	root_begin=$swap_end
+	[[ $device == $device_home ]] && compute_part_root_on_shared_device || root_end="100%"
+	[[ $device == $device_home ]] && home_begin=$root_end || home_begin="1MiB"
+	home_end="100%"
+}
+
+set_disk_label(){
+	is_uefi && label="gpt" || label="msdos"
+	parted --script ${device} -- mklabel "$label"
+}
+
+create_partitions(){
+	is_uefi && parted --script ${device} -- mkpart ESP fat32 1MiB "$uefi_size"MiB
+	parted --script ${device} -- mkpart primary linux-swap "$uefi_size"MiB "$swap_end"
+	parted --script ${device} -- mkpart primary ext4 "$swap_end" "$root_end"
+	parted --script ${device_home} -- mkpart primary ext4 "$home_begin" "$home_end"
+	is_uefi && parted --script ${device} -- set 1 boot on || parted --script ${device} -- set 2 boot on
+}
+
+format_and_mount(){
+	is_uefi && part_boot_id="^${device}p?1$" 
+	is_uefi && part_swap_id="^${device}p?2$" || part_swap_id="^${device}p?1$"
+	is_uefi && part_root_id="^${device}p?3$" || part_root_id="^${device}p?2$"
+	if [[ "$device" == "$device_home" ]]
+	then
+		is_uefi && part_home_id="^${device}p?4$" || part_home_id="^${device}p?3$"
+	else
+		part_home_id="^${device_home}p?1$"
+	fi
+	part_boot="$(ls ${device}* | grep -E "$part_boot_id")"
+	part_swap="$(ls ${device}* | grep -E "$part_swap_id")"
+	part_root="$(ls ${device}* | grep -E "$part_root_id")"
+	part_home="$(ls ${device_home}* | grep -E "$part_home_id")"
+	
+	is_uefi && wipefs "${part_boot}"
+	wipefs "${part_swap}"
+	wipefs "${part_root}"
+	wipefs "${part_home}"
+
+	is_uefi && mkfs.vfat -F32 "${part_boot}"
+	mkswap "${part_swap}"
+	mkfs.ext4 "${part_root}"
+	$(echo -n "${password}" | cryptsetup luksFormat --batch-mode "${part_home}" -d -)
+	$(echo -n "${password}" | cryptsetup open --batch-mode "${part_home}" home -d - )
+	mkfs.ext4 /dev/mapper/home
+
+	swapon "${part_swap}"
+	mount "${part_root}" /mnt
+	mkdir /mnt/home
+	mount /dev/mapper/home /mnt/home
+	is_uefi && mkdir /mnt/boot
+	is_uefi && mount "${part_boot}" /mnt/boot
+	return 0
+}
+
+partition_hard_drive(){
+	get_drive_to_install
+	set_disk_label
+	compute_partitions_size
+	create_partitions
+	format_and_mount
+}
+
+################# INSTALL LINUX #################
+
+
+# -------------- PACKAGES ----------------#
+
+update_mirror_list(){
+	if [[ -z "$COUNTRY" ]]
+	then
+		mirror_list_url="https://www.archlinux.org/mirrorlist/?country=$COUNTRY&protocol=https&use_mirror_status=on"
+		pacman -Sy --noconfirm pacman-contrib
+		curl -s "$mirror_list_url" | \
+		    sed -e 's/^#Server/Server/' -e '/^#/d' | \
+		    rankmirrors -n 5 - > /etc/pacman.d/mirrorlist
+	pacman -Sy
+	fi
+}
+
+update_private_mirror(){
+	if [[ -z "$PRIVATE_REPO" ]]  && [[ -z "$PRIVATE_REPO_URL" ]]
+	then
+		echo "[$PRIVATE_REPO]" >> /etc/pacman.conf
+		echo "SigLevel = Optional TrustAll" >> /etc/pacman.conf
+		echo "Server = $PRIVATE_REPO_URL" >>  /etc/pacman.conf
+	fi
+	pacman -Sy
+}
+
+update_repo() {
+	update_mirror_list
+	update_private_mirror
+}
+
+update_repo_install_linux(){
+	cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist
+	cp /etc/pacman.conf /mnt/etc/pacman.conf
+	arch-chroot /mnt pacman -Sy
+}
+
+pacstrap(){
+	update_repo
+	pacstrap /mnt base linux linux-firmware
+	update_repo_install_linux
+}
+
+# -------------- NETWORK ----------------#
+
+get_hostname(){
+	hostname=$(dialog --stdout --inputbox "Enter hostname" 0 0) || exit 1
+	clear
+	: ${hostname:?"hostname cannot be empty"}
+}
+
+set_hostname(){
+	[[ -z "$hostname" ]] && get_hostname
+	echo "${hostname}" > /mnt/etc/hostname
+}
+
+# -------------- LOCALES ----------------#
+
+get_locale(){
+	locale_list=$(cut -d '#' -f2 /etc/locale.gen)
+	LOCALE=$(dialog --stdout --menu "Select locale computer" $locale_list 0 0 0  )
+}
+
+get_keyboard_layout(){
+	keyboard_layout_list=$(ls /usr/share/kbd/keymaps/**/*.map.gz | sed 's:\(.*\)/\(.*\)\.map\.gz:\2 (\1):')
+	KEYBOARD_LAYOUT=$(dialog --stdout --menu "Select keyboard layout" $keyboard_layout_list 0 0 0  )
+}
+
+get_timezone(){
+	timezone_list=$(ls /usr/share/kbd/keymaps/**/*.map.gz | sed 's:\(.*\)/\(.*\)\.map\.gz:\2 (\1):')
+	TIMEZONE=$(dialog --stdout --menu "Select a timezone" $timezone_list 0 0 0  )
+}
+
+generate_locales(){
+	[[ -z "$LOCALE" ]] && get_locale
+	[[ -z "$KEYBOARD_LAYOUT" ]] && get_keyboard_layout
+	[[ -z "$TIMEZONE" ]] && get_timezone
+	echo $LOCALE >> /mnt/etc/locale.gen
+	echo $KEYBOARD_LAYOUT >> /mnt/etc/vconsole.conf
+	arch-chroot /mnt ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
+	arch-chroot /mnt locale-gen
+	arch-chroot /mnt hwclock --systohc
+	loadkeys $KEYBOARD_LAYOUT
+}
+
+
+# -------------- USER ----------------#
+
+get_username(){
+	user=$(dialog --stdout --inputbox "Enter admin username" 0 0) || exit 1
+	clear
+	: ${user:?"user cannot be empty"}
+}
+
+get_password(){
+	message="Please enter admin password"
+	while [[ -z "$password" ]]  || [[ -z "$password2" ]] || [[ "$password" != "$password2" ]]; do
+		password=$(dialog --stdout --passwordbox "$message" 0 0) || exit 1
+		clear
+		: ${password:?"password cannot be empty"}
+		password2=$(dialog --stdout --passwordbox "Enter admin password again" 0 0) || exit 1
+		clear
+		message="Password cannot be empty and need to match. Try again:"
+	done
+}
+
+add_user(){
+	[[ -z "$user" ]] && get_username
+	[[ -z "$password" ]] && get_password
+	[[ -z "$shell" ]] && shell="/bin/sh"
+	arch-chroot /mnt useradd -mU -s "$shell" -G wheel,uucp,video,audio,storage,games,input "$user"
+	arch-chroot /mnt chsh -s $shell
+	echo "$user ALL=(ALL:ALL) ALL" >> /mnt/etc/sudoers
+	echo "$user:$password" | chpasswd --root /mnt
+	echo "root:$password" | chpasswd --root /mnt
+}
+
+# -------------- PACKAGES --------------#
+
+
+install_packages(){
+	[[ -z "$PRIVATE_PACKAGES" ]] && arch-chroot /mnt pacman -Sy --noconfirm $PRIVATE_PACKAGES
+}
+
+
+# -------------- CONFIG ----------------#
+
+get_bw_password(){
+	bw_username=$(dialog --stdout --inputbox "Enter your bitwarden user" 0 0) || exit 1
+	message="Please enter your bitwarden password"
+	while [[ -z "$bw_pass1" ]]  || [[ -z "$bw_pass2" ]] || [[ "$bw_pass1" != "$bw_pass2" ]]; do
+		bw_pass1=$(dialog --stdout --passwordbox "$message" 0 0) || exit 1
+		clear
+		: ${bw_pass1:?"password cannot be empty"}
+		bw_pass2=$(dialog --stdout --passwordbox "Enter bitwarden password again" 0 0) || exit 1
+		clear
+		message="Password cannot be empty and need to match. Try again:"
+	done
+}
+
+get_bw_session(){
+	[[ -z "$bw_pass1" ]] && get_bw_password
+	pacman -Sy --noconfirm bitwarden-cli jq
+	bw logout
+	bw_session=$(bw login $bw_username $bw_pass1 --raw)
+	bw_pass1=''
+	bw_pass2=''
+}
+
+# Not available at the moment by the gitlab API unfortunately
+# See https://forum.gitlab.com/t/deploy-keys-api-needs-admin-access/34814/2
+ssh_deploy_on_gitlab(){
+	[[ -z "$bw_session" ]] && get_bw_session
+	ssh_public=$(cat /mnt/home/$user/.ssh/id_rsa.pub)
+	gitlab_private_token=$(bw get password --session $bw_session gitlab_token)
+	gitlab_projects_ids=$(curl --header "Private-Token: $gitlab_private_token" https://gitlab.com/api/v4/projects | jq '.[]|.id')
+	for gitlab_project_id in $gitlab_projects_ids; do
+		data='{"title": "'"$hostname"'", "key": "'"$ssh_public"'"}'
+		echo "Posting $data"
+		curl --request POST --header 'PRIVATE-TOKEN: '"$gitlab_private_token"'' --header "Content-Type: application/json" \
+			--data "$data" https://gitlab.com/api/v4/projects/${gitlab_project_id}/deploy_keys
+	done
+}
+
+ssh_deploy_on_github(){
+	github_username=$(bw get username --session $bw_session github.com)
+	github_password=$(bw get password --session $bw_session github_token)
+	ssh_public=$(cat /mnt/home/$user/.local/share/ssh/id_rsa.pub)
+	curl -u "$github_username:$github_password" --data "{\"title\":\"$hostname\",\"key\":\"$ssh_public\"}" https://api.github.com/user/keys
+	arch-chroot /mnt su $user -c "ssh-keyscan github.com >> /home/$user/.local/share/ssh/known_hosts"
+}
+
+ssh_deploy_on_remote(){
+	if [[ -z "$REMOTE" ]] && [[ -z "$bw_session" ]]
+	then
+		remote_user=(bw get username --session $bw_session "$REMOTE")
+		remote_password=(bw get password --session $bw_session "$REMOTE")
+		arch-chroot /mnt su $user -c "ssh-keyscan $REMOTE >> /home/$user/.local/share/ssh/known_hosts"
+		arch-chroot /mnt su $user -c "ssh-copy-id -i /home/$user/.local/share/ssh/id_rsa $remote_user:$remote_password@$REMOTE"
+	fi
+}
+
+ssh_get_gitlab(){
+	if [[ -z "$REMOTE" ]] && [[ -z "$bw_session" ]] && [[ -z "GITLAB_SSH_SHARED_KEY" ]]
+	then
+		remote_user=(bw get username --session $bw_session "$REMOTE")
+		remote_password=(bw get password --session $bw_session "$REMOTE")
+		scp $remote_user:$remote_password@$REMOTE:$GITLAB_SSH_SHARED_KEY* /mnt/home/$user/.local/share/ssh/
+		arch-chroot /mnt su $user -c "ssh-add ~/.local/share/ssh/$GITLAB_SSH_SHARED_KEY"
+	fi
+}
+
+ssh_deploy(){
+	arch-chroot /mnt su - $user -c "mkdir -p /home/$user/.local/share/ssh"
+	arch-chroot /mnt su - $user -c "ssh-keygen -qN $password -f /home/$user/.local/share/ssh/id_rsa"
+	[[ -z "$bw_session" ]] && get_bw_session
+	ssh_deploy_on_remote
+	ssh_deploy_on_github
+	ssh_get_gitlab
+}
+
+add_config(){
+	ssh_deploy
+	if [[ -z "$CONFIG_REPO" ]]
+	then
+		arch-chroot /mnt su - $user -c "git clone $CONFIG_REPO /home/$user/.local/share/env"
+		arch-chroot /mnt su - $user -c "cd /home/$user/.local/share/env && git remote set-url origin $CONFIG_REPO"
+		arch-chroot /mnt su - $user -c "chmod +x /home/$user/.local/share/env/deploy && /home/$user/.local/share/env/deploy"
+	fi
+}
+
+
+# --------------- BOOTLOADER ------------#
+
+install_bootloader_uefi(){
+       arch-chroot /mnt bootctl install
+       echo "default arch" > /mnt/boot/loader/loader.conf
+       echo "title    Arch Linux" > /mnt/boot/loader/entries/arch.conf
+       echo "linux    /vmlinuz-linux" >> /mnt/boot/loader/entries/arch.conf
+       echo "initrd   /initramfs-linux.img" >> /mnt/boot/loader/entries/arch.conf
+       echo "options  root=PARTUUID=$(blkid -s PARTUUID -o value "$part_root") rw" >> /mnt/boot/loader/entries/arch.conf
+}
+
+install_bootloader_bios(){
+	arch-chroot /mnt pacman -Sy --noconfirm grub
+	arch-chroot /mnt grub-install --target=i386-pc "$device"
+	arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
+}
+
+generate_fstab(){
+	part_home_name=$( echo $part_home | cut -d '/' -f3 )
+	home_uuid=$( lsblk -ro NAME,UUID ${device_home} | grep "${part_home_name}" | cut -d ' ' -f2 )
+	echo "home	UUID=${home_uuid}	 none	luks" >> /mnt/etc/crypttab
+	genfstab -t PARTUUID /mnt >> /mnt/etc/fstab
+}
+
+install_bootloader(){
+	generate_fstab
+	is_uefi && install_bootloader_uefi || install_bootloader_bios
+}
+
+# -------------- INSTALL ----------------#
+
+get_all_input(){
+	[[ -z "$LOCALE" ]] && get_locale
+	[[ -z "$KEYBOARD_LAYOUT" ]] && get_keyboard_layout
+	loadkeys $KEYBOARD_LAYOUT
+	[[ -z "$TIMEZONE" ]] && get_timtimezone
+	[[ -z "$user" ]] && get_username
+	[[ -z "$password" ]] && get_password
+	[[ -z "$hostname" ]] && get_hostname
+	[[ -z "$bw_pass1" ]] && get_bw_password
+}
+
+manage_error_during_install && \
+get_all_input && \
+partition_hard_drive && \
+pacstrap && \
+generates_locales && \
+set_hostname && \
+install_packages && \
+install_bootloader && \
+add_user && \
+add_config
