@@ -361,7 +361,7 @@ manage_error_during_install && \
 get_all_input && \
 partition_hard_drive && \
 pacstrap_base && \
-generates_locales && \
+generate_locales && \
 set_hostname && \
 install_packages && \
 install_bootloader && \
