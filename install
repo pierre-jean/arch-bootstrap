@@ -1,7 +1,7 @@
 #!/bin/bash
 # WARNING: this script will destroy data on the selected disk.
 # This script can be run by executing the following:
-#   curl -sL https://git.io/vAoV8 | bash
+#   curl -sL https://arch-bootstrap.baraud.fr/install | bash
 
 
 ################# GLOBAL BATCH SETTINGS #################
@@ -140,7 +140,7 @@ update_repo_install_linux(){
 	arch-chroot /mnt pacman -Sy
 }
 
-pacstrap(){
+pacstrap_base(){
 	update_repo
 	pacstrap /mnt base linux linux-firmware
 	update_repo_install_linux
@@ -360,7 +360,7 @@ get_all_input(){
 manage_error_during_install && \
 get_all_input && \
 partition_hard_drive && \
-pacstrap && \
+pacstrap_base && \
 generates_locales && \
 set_hostname && \
 install_packages && \
