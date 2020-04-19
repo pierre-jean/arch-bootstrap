@@ -143,11 +143,11 @@ update_repo_install_linux(){
 }
 
 pacstrap_base(){
-	"==> Pacstrap base..."
+	echo "==> Pacstrap base..."
 	update_repo
 	pacstrap /mnt base linux linux-firmware
 	update_repo_install_linux
-	"==> Pacstrap base succeeded"
+	echo "==> Pacstrap base succeeded"
 }
 
 # -------------- NETWORK ----------------#
