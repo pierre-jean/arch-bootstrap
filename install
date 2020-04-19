@@ -95,11 +95,13 @@ format_and_mount(){
 }
 
 partition_hard_drive(){
+	echo "==> Begginning to partition hard drive..."
 	get_drive_to_install
 	set_disk_label
 	compute_partitions_size
 	create_partitions
 	format_and_mount
+	echo "==> ...Partition hard drive succeedeed"
 }
 
 ################# INSTALL LINUX #################
@@ -141,9 +143,11 @@ update_repo_install_linux(){
 }
 
 pacstrap_base(){
+	"==> Pacstrap base..."
 	update_repo
 	pacstrap /mnt base linux linux-firmware
 	update_repo_install_linux
+	"==> Pacstrap base succeeded"
 }
 
 # -------------- NETWORK ----------------#
@@ -155,8 +159,10 @@ get_hostname(){
 }
 
 set_hostname(){
+	echo "==> Set Hostname ... "
 	[[ -z "$hostname" ]] && get_hostname
 	echo "${hostname}" > /mnt/etc/hostname
+	echo "==> Set Hostname succeeded"
 }
 
 # -------------- LOCALES ----------------#
@@ -177,6 +183,7 @@ get_timezone(){
 }
 
 generate_locales(){
+	echo "==> Generate Locales..."
 	[[ -z "$LOCALE" ]] && get_locale
 	[[ -z "$KEYBOARD_LAYOUT" ]] && get_keyboard_layout
 	[[ -z "$TIMEZONE" ]] && get_timezone
@@ -186,6 +193,7 @@ generate_locales(){
 	arch-chroot /mnt locale-gen
 	arch-chroot /mnt hwclock --systohc
 	loadkeys $KEYBOARD_LAYOUT
+	echo "==> Generate Locales succeeded"
 }
 
 
@@ -210,6 +218,7 @@ get_password(){
 }
 
 add_user(){
+	echo "==> Add user..."
 	[[ -z "$user" ]] && get_username
 	[[ -z "$password" ]] && get_password
 	[[ -z "$shell" ]] && shell="/bin/sh"
@@ -218,13 +227,16 @@ add_user(){
 	echo "$user ALL=(ALL:ALL) ALL" >> /mnt/etc/sudoers
 	echo "$user:$password" | chpasswd --root /mnt
 	echo "root:$password" | chpasswd --root /mnt
+	echo "==> Add user succeeded"
 }
 
 # -------------- PACKAGES --------------#
 
 
 install_packages(){
+	echo "==> Install packages..."
 	[[ -z "$PRIVATE_PACKAGES" ]] && arch-chroot /mnt pacman -Sy --noconfirm $PRIVATE_PACKAGES
+	echo "==> Install packages succeeded"
 }
 
 
@@ -305,6 +317,7 @@ ssh_deploy(){
 }
 
 add_config(){
+	echo "==> Add config..."
 	ssh_deploy
 	if [[ -z "$CONFIG_REPO" ]]
 	then
@@ -312,6 +325,7 @@ add_config(){
 		arch-chroot /mnt su - $user -c "cd /home/$user/.local/share/env && git remote set-url origin $CONFIG_REPO"
 		arch-chroot /mnt su - $user -c "chmod +x /home/$user/.local/share/env/deploy && /home/$user/.local/share/env/deploy"
 	fi
+	echo "==> Add config succeeded"
 }
 
 
@@ -340,8 +354,10 @@ generate_fstab(){
 }
 
 install_bootloader(){
+	echo "==> Install bootloader ..."
 	generate_fstab
 	is_uefi && install_bootloader_uefi || install_bootloader_bios
+	echo "==> Install bootloader succeeded"
 }
 
 # -------------- INSTALL ----------------#
@@ -366,4 +382,5 @@ set_hostname && \
 install_packages && \
 install_bootloader && \
 add_user && \
-add_config
+add_config && \
+echo "Installation complete, you can now reboot" || "A problem occurred during installation, check logs"
