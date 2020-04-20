@@ -110,7 +110,7 @@ partition_hard_drive(){
 # -------------- PACKAGES ----------------#
 
 update_mirror_list(){
-	if [[ -z "$COUNTRY" ]]
+	if [[ -n "$COUNTRY" ]]
 	then
 		mirror_list_url="https://www.archlinux.org/mirrorlist/?country=$COUNTRY&protocol=https&use_mirror_status=on"
 		pacman -Sy --noconfirm pacman-contrib
@@ -122,7 +122,7 @@ update_mirror_list(){
 }
 
 update_private_mirror(){
-	if [[ -z "$PRIVATE_REPO" ]]  && [[ -z "$PRIVATE_REPO_URL" ]]
+	if [[ -n "$PRIVATE_REPO" ]]  && [[ -n "$PRIVATE_REPO_URL" ]]
 	then
 		echo "[$PRIVATE_REPO]" >> /etc/pacman.conf
 		echo "SigLevel = Optional TrustAll" >> /etc/pacman.conf
@@ -288,7 +288,7 @@ ssh_deploy_on_github(){
 }
 
 ssh_deploy_on_remote(){
-	if [[ -z "$REMOTE" ]] && [[ -z "$bw_session" ]]
+	if [[ -n "$REMOTE" ]] && [[ -n "$bw_session" ]]
 	then
 		remote_user=(bw get username --session $bw_session "$REMOTE")
 		remote_password=(bw get password --session $bw_session "$REMOTE")
@@ -298,7 +298,7 @@ ssh_deploy_on_remote(){
 }
 
 ssh_get_gitlab(){
-	if [[ -z "$REMOTE" ]] && [[ -z "$bw_session" ]] && [[ -z "GITLAB_SSH_SHARED_KEY" ]]
+	if [[ -n "$REMOTE" ]] && [[ -n "$bw_session" ]] && [[ -n "GITLAB_SSH_SHARED_KEY" ]]
 	then
 		remote_user=(bw get username --session $bw_session "$REMOTE")
 		remote_password=(bw get password --session $bw_session "$REMOTE")
@@ -319,7 +319,7 @@ ssh_deploy(){
 add_config(){
 	echo "==> Add config..."
 	ssh_deploy
-	if [[ -z "$CONFIG_REPO" ]]
+	if [[ -n "$CONFIG_REPO" ]]
 	then
 		arch-chroot /mnt su - $user -c "git clone $CONFIG_REPO /home/$user/.local/share/env"
 		arch-chroot /mnt su - $user -c "cd /home/$user/.local/share/env && git remote set-url origin $CONFIG_REPO"
