@@ -235,7 +235,7 @@ add_user(){
 
 install_packages(){
 	echo "==> Install packages..."
-	[[ -z "$PRIVATE_PACKAGES" ]] && arch-chroot /mnt pacman -Sy --noconfirm $PRIVATE_PACKAGES
+	[[ -n "$PRIVATE_PACKAGES" ]] && arch-chroot /mnt pacman -Sy --noconfirm $PRIVATE_PACKAGES
 	echo "==> Install packages succeeded"
 }
 
