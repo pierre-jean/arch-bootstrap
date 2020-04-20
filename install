@@ -292,8 +292,9 @@ ssh_deploy_on_remote(){
 	then
 		remote_user=$(bw get username --session $bw_session "$REMOTE")
 		remote_password=$(bw get password --session $bw_session "$REMOTE")
-		arch-chroot /mnt su $user -c "ssh-keyscan $REMOTE >> /home/$user/.local/share/ssh/known_hosts"
-		arch-chroot /mnt su $user -c "ssh-copy-id -i /home/$user/.local/share/ssh/id_rsa $remote_user:$remote_password@$REMOTE"
+		ssh-keyscan $REMOTE >> /mnt/home/$user/.local/share/ssh/known_hosts
+		ssh-keyscan $REMOTE >> ~/.ssh/known_hosts
+		ssh-copy-id -o  -i /mnt/home/$user/.local/share/ssh/id_rsa $remote_user:$remote_password@$REMOTE
 	fi
 }
 
@@ -308,12 +309,12 @@ ssh_get_gitlab(){
 }
 
 ssh_deploy(){
-	arch-chroot /mnt su - $user -c "mkdir -p /home/$user/.local/share/ssh"
-	arch-chroot /mnt su - $user -c "ssh-keygen -qN $password -f /home/$user/.local/share/ssh/id_rsa"
+	mkdir -p /mnt/home/$user/.local/share/ssh
+	ssh-keygen -C "$user@$hostname" -qN $password -f /mnt/home/$user/.local/share/ssh/id_rsa
 	[[ -z "$bw_session" ]] && get_bw_session
 	ssh_deploy_on_remote
-	ssh_deploy_on_github
-	ssh_get_gitlab
+	//ssh_deploy_on_github
+	//ssh_get_gitlab
 }
 
 add_config(){
