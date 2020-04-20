@@ -290,8 +290,8 @@ ssh_deploy_on_github(){
 ssh_deploy_on_remote(){
 	if [[ -n "$REMOTE" ]] && [[ -n "$bw_session" ]]
 	then
-		remote_user=(bw get username --session $bw_session "$REMOTE")
-		remote_password=(bw get password --session $bw_session "$REMOTE")
+		remote_user=$(bw get username --session $bw_session "$REMOTE")
+		remote_password=$(bw get password --session $bw_session "$REMOTE")
 		arch-chroot /mnt su $user -c "ssh-keyscan $REMOTE >> /home/$user/.local/share/ssh/known_hosts"
 		arch-chroot /mnt su $user -c "ssh-copy-id -i /home/$user/.local/share/ssh/id_rsa $remote_user:$remote_password@$REMOTE"
 	fi
@@ -300,8 +300,8 @@ ssh_deploy_on_remote(){
 ssh_get_gitlab(){
 	if [[ -n "$REMOTE" ]] && [[ -n "$bw_session" ]] && [[ -n "GITLAB_SSH_SHARED_KEY" ]]
 	then
-		remote_user=(bw get username --session $bw_session "$REMOTE")
-		remote_password=(bw get password --session $bw_session "$REMOTE")
+		remote_user=$(bw get username --session $bw_session "$REMOTE")
+		remote_password=$(bw get password --session $bw_session "$REMOTE")
 		scp $remote_user:$remote_password@$REMOTE:$GITLAB_SSH_SHARED_KEY* /mnt/home/$user/.local/share/ssh/
 		arch-chroot /mnt su $user -c "ssh-add ~/.local/share/ssh/$GITLAB_SSH_SHARED_KEY"
 	fi
