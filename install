@@ -321,9 +321,9 @@ add_config(){
 	ssh_deploy
 	if [[ -n "$CONFIG_REPO" ]]
 	then
-		arch-chroot /mnt su - $user -c "git clone $CONFIG_REPO /home/$user/.local/share/env"
-		arch-chroot /mnt su - $user -c "cd /home/$user/.local/share/env && git remote set-url origin $CONFIG_REPO"
-		arch-chroot /mnt su - $user -c "chmod +x /home/$user/.local/share/env/deploy && /home/$user/.local/share/env/deploy"
+	echo $password | git clone $CONFIG_REPO /mnt/home/$user/.local/share/env
+	chmod +x /mnt/home/$user/.local/share/env/deploy
+	/mnt/home/$user/.local/share/env/deploy /mnt/home/$user
 	fi
 	echo "==> Add config succeeded"
 }
