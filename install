@@ -292,6 +292,7 @@ ssh_deploy_on_remote(){
 	then
 		remote_user=$(bw get username --session $bw_session "$REMOTE")
 		remote_password=$(bw get password --session $bw_session "$REMOTE")
+		pacman -Sy --noconfirm sshpass
 		sshpass $remote_password ssh-copy-id -o StrictHostKeyChecking=no -i /mnt/home/$user/.local/share/ssh/id_rsa $remote_user:$remote_password@$REMOTE
 	fi
 }
@@ -382,4 +383,4 @@ install_packages && \
 install_bootloader && \
 add_user && \
 add_config && \
-echo "Installation complete, you can now reboot" || "A problem occurred during installation, check logs"
+echo "Installation complete, check logs for more info"
