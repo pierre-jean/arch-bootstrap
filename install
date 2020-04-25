@@ -311,8 +311,8 @@ ssh_deploy(){
 	ssh-keygen -C "$user@$hostname" -qN $password -f /mnt/home/$user/.local/share/ssh/id_rsa
 	[[ -z "$bw_session" ]] && get_bw_session
 	ssh_deploy_on_remote
-	//ssh_deploy_on_github
-	//ssh_get_gitlab
+	#ssh_deploy_on_github
+	#ssh_get_gitlab
 }
 
 add_config(){
