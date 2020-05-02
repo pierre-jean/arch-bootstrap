@@ -382,5 +382,5 @@ set_hostname && \
 install_packages && \
 install_bootloader && \
 add_user && \
-add_config && \
+#add_config && \
 echo "Installation complete, check logs for more info"
