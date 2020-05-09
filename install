@@ -313,7 +313,7 @@ get_all_input(){
 	[[ -z "$LOCALE" ]] && get_locale
 	[[ -z "$KEYBOARD_LAYOUT" ]] && get_keyboard_layout
 	loadkeys $KEYBOARD_LAYOUT
-	[[ -z "$TIMEZONE" ]] && get_timtimezone
+	[[ -z "$TIMEZONE" ]] && get_timezone
 	[[ -z "$user" ]] && get_username
 	[[ -z "$password" ]] && get_password
 	[[ -z "$hostname" ]] && get_hostname
