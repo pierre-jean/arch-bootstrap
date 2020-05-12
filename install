@@ -261,6 +261,7 @@ get_remote_credentials(){
 ssh_generate_keys(){
 	mkdir -p /mnt/home/$user/.local/share/ssh
 	ssh-keygen -C "$user@$hostname" -qN $password -f /mnt/home/$user/.local/share/ssh/id_rsa
+	arch-chroot /mnt chown --recursive $user:$user /home/$user/.local 
 }
 
 ssh_deploy_on_remote(){
