@@ -190,7 +190,7 @@ generate_locales(){
 	[[ -z "$TIMEZONE" ]] && get_timezone
 	echo $LOCALE >> /mnt/etc/locale.gen
 	echo $KEYBOARD_LAYOUT >> /mnt/etc/vconsole.conf
-	[[ -n "$XKB_LAYOUT" ]] arch-chroot /mnt localectl set-x11-keymap $XKB_LAYOUT
+	[[ -n "$XKB_LAYOUT" ]] && arch-chroot /mnt localectl set-x11-keymap $XKB_LAYOUT
 	arch-chroot /mnt ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
 	arch-chroot /mnt locale-gen
 	arch-chroot /mnt hwclock --systohc
