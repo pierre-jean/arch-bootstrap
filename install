@@ -2,6 +2,7 @@
 # WARNING: this script will destroy data on the selected disk.
 # This script can be run by executing the following:
 #   curl -sL https://arch-bootstrap.baraud.fr/install | bash
+# See https://github.com/pierre-jean/arch-bootstrap for more info
 
 
 ################# GLOBAL BATCH SETTINGS #################
