@@ -339,8 +339,8 @@ get_all_input(){
 	[[ -z "$remote_user" ]] && get_remote_credentials
 }
 
-manage_error_during_install
 get_all_input 
+manage_error_during_install
 partition_hard_drive 
 pacstrap_base
 generate_locales 
