@@ -52,6 +52,13 @@ set_disk_label(){
 }
 
 create_partitions(){
+	echo "==========================="
+	echo "Formating:"
+	is_uefi && echo "	Uefi:	1MiB to	${uefi_size}MiB"
+	echo "	Swap:	${uefi_size}MiB to	${swap_end}"
+	echo "  Root:	${swap_end} to	${root_end}"
+	echo "  Home:	${home_begin} to	${home_end}"
+	echo "==========================="
 	is_uefi && parted --script ${device} -- mkpart ESP fat32 1MiB "$uefi_size"MiB
 	parted --script ${device} -- mkpart primary linux-swap "$uefi_size"MiB "$swap_end"
 	parted --script ${device} -- mkpart primary ext4 "$swap_end" "$root_end"
@@ -73,6 +80,14 @@ format_and_mount(){
 	part_swap="$(ls ${device}* | grep -E "$part_swap_id")"
 	part_root="$(ls ${device}* | grep -E "$part_root_id")"
 	part_home="$(ls ${device_home}* | grep -E "$part_home_id")"
+
+	echo "==========================="
+	echo "Partition:"
+	is uefi && echo "	Boot:	${part_boot}"
+	echo "	Swap:	${part_swap}"
+	echo "  Root:	${swap_root}"
+	echo "  Home:	${part_home}"
+	echo "==========================="
 	
 	is_uefi && wipefs "${part_boot}"
 	wipefs "${part_swap}"
@@ -223,9 +238,9 @@ add_user(){
 	echo "==> Add user..."
 	[[ -z "$user" ]] && get_username
 	[[ -z "$password" ]] && get_password
-	[[ -z "$MAIN_SHELL" ]] && MAIN_SHELL="/bin/sh"
-	arch-chroot /mnt useradd -mU -s "$MAIN_SHELL" -G wheel,uucp,video,audio,storage,games,input "$user"
-	arch-chroot /mnt chsh -s $MAIN_SHELL
+	[[ -n "$MAIN_SHELL" ]] && shell= "/bin/S{MAIN_SHELL}" || shell ="/bin/sh"
+	arch-chroot /mnt useradd -mU -s "$shell" -G wheel,uucp,video,audio,storage,games,input "$user"
+	arch-chroot /mnt chsh -s $shell
 	echo "$user ALL=(ALL:ALL) ALL" >> /mnt/etc/sudoers
 	echo "$user:$password" | chpasswd --root /mnt
 	echo "root:$password" | chpasswd --root /mnt
