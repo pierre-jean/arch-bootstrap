@@ -34,6 +34,7 @@ compute_part_root_on_shared_device(){
 	[[ $device_size -le 130 ]] && root_end="40GiB" 
 	[[ $device_size -le 80 ]] && root_end="20GiB" 
 	[[ $device_size -le 20 ]] && root_end="50%"
+	return 0
 }
 
 compute_partitions_size(){
