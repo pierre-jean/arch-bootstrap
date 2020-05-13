@@ -84,7 +84,7 @@ format_and_mount(){
 
 	echo "==========================="
 	echo "Partition:"
-	is uefi && echo "	Boot:	${part_boot}"
+	is_uefi && echo "	Boot:	${part_boot}"
 	echo "	Swap:	${part_swap}"
 	echo "  Root:	${swap_root}"
 	echo "  Home:	${part_home}"
