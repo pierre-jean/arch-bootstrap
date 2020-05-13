@@ -239,7 +239,7 @@ add_user(){
 	echo "==> Add user..."
 	[[ -z "$user" ]] && get_username
 	[[ -z "$password" ]] && get_password
-	[[ -n "$MAIN_SHELL" ]] && shell= "/bin/${MAIN_SHELL}" || shell ="/bin/sh"
+	[[ -n "$MAIN_SHELL" ]] && shell="/bin/${MAIN_SHELL}" || shell="/bin/sh"
 	arch-chroot /mnt useradd -mU -s "$shell" -G wheel,uucp,video,audio,storage,games,input "$user"
 	arch-chroot /mnt chsh -s $shell
 	echo "$user ALL=(ALL:ALL) ALL" >> /mnt/etc/sudoers
