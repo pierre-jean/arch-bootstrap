@@ -209,8 +209,9 @@ generate_locales(){
 	[[ -n "$XKB_LAYOUT" ]] && arch-chroot /mnt localectl set-x11-keymap $XKB_LAYOUT
 	arch-chroot /mnt ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
 	arch-chroot /mnt locale-gen
+	arch-chroot /mnt localectl set-locale LANG=${LOCALE% *}
+	arch-chroot /mnt localectl set-keymap $KEYBOARD_LAYOUT
 	arch-chroot /mnt hwclock --systohc
-	loadkeys $KEYBOARD_LAYOUT
 	echo "==> Generate Locales succeeded"
 }
 
