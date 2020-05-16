@@ -199,22 +199,6 @@ get_timezone(){
 	TIMEZONE=$(dialog --stdout --menu "Select a timezone" $timezone_list 0 0 0  )
 }
 
-generate_locales(){
-	echo "==> Generate Locales..."
-	[[ -z "$LOCALE" ]] && get_locale
-	[[ -z "$KEYBOARD_LAYOUT" ]] && get_keyboard_layout
-	[[ -z "$TIMEZONE" ]] && get_timezone
-	echo $LOCALE >> /mnt/etc/locale.gen
-	echo $KEYBOARD_LAYOUT >> /mnt/etc/vconsole.conf
-	arch-chroot /mnt ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
-	arch-chroot /mnt locale-gen
-	echo "LANG=${LOCALE}" > /mnt/etc/locale.conf
-	arch-chroot /mnt localectl set-locale LANG=${LOCALE}
-	arch-chroot /mnt localectl set-keymap $KEYBOARD_LAYOUT
-	arch-chroot /mnt hwclock --systohc
-	echo "==> Generate Locales succeeded"
-}
-
 
 # -------------- USER ----------------#
 
@@ -344,10 +328,9 @@ get_all_input
 manage_error_during_install
 partition_hard_drive 
 pacstrap_base
-generate_locales 
 set_hostname 
+add_user 
 install_packages 
 install_bootloader
-add_user 
 ssh_deploy
 echo "Installation complete, check logs for more info"
